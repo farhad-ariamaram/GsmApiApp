@@ -2,9 +2,11 @@
 using GsmApiApp.Utilities;
 using Microsoft.Extensions.Configuration;
 using System;
+using System.Collections.Generic;
 using System.IO.Ports;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace GsmApiApp
@@ -38,6 +40,7 @@ namespace GsmApiApp
                 HttpListenerRequest request = context.Request;
 
                 string Phone, Body, Index, responseMsg = "";
+                Tuple<List<SMS>, bool> resultReadAll = null;
 
                 switch (request.Url.AbsolutePath)
                 {
@@ -65,7 +68,8 @@ namespace GsmApiApp
                     case "/api/readAll":
                         try
                         {
-                            if (await ReadAll())
+                            resultReadAll = await ReadAll();
+                            if (resultReadAll.Item2)
                             {
                                 responseMsg = "read all sms successfully";
                             }
@@ -168,21 +172,27 @@ namespace GsmApiApp
                 }
 
                 HttpListenerResponse response = context.Response;
-                string responseString = responseMsg;
-                byte[] buffer = System.Text.Encoding.UTF8.GetBytes(responseString);
-                response.ContentLength64 = buffer.Length;
                 System.IO.Stream output = response.OutputStream;
-                await output.WriteAsync(buffer, 0, buffer.Length);
-
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine($"new {request.HttpMethod} request");
-
-                if (response.StatusCode == 200)
+                try
                 {
+                    string responseString = responseMsg;
+                    byte[] buffer = System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(resultReadAll.Item1));
+                    response.ContentLength64 = buffer.Length;
+                    await output.WriteAsync(buffer, 0, buffer.Length);
                     Console.ForegroundColor = ConsoleColor.Green;
-                    Console.WriteLine("status 200/OK");
+                    Console.WriteLine($"new {request.HttpMethod} request");
+                    if (response.StatusCode == 200)
+                    {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                        Console.WriteLine("status 200/OK");
+                    }
+                    else
+                    {
+                        Console.ForegroundColor = ConsoleColor.Red;
+                        Console.WriteLine($"status {response.StatusCode}");
+                    }
                 }
-                else
+                catch (Exception)
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
                     Console.WriteLine($"status {response.StatusCode}");
@@ -199,59 +209,62 @@ namespace GsmApiApp
             return true;
         }
 
-        private static async Task<bool> ReadAll()
+        private static async Task<Tuple<List<SMS>, bool>> ReadAll()
         {
-            SerialPort serialPort = new SerialPort();
-            string portNo = GSMPort;
-            serialPort.PortName = portNo;
-            serialPort.BaudRate = 9600;
-            if (!serialPort.IsOpen)
+            using (SerialPort serialPort = new SerialPort())
             {
-                serialPort.Open();
-            }
-            serialPort.WriteLine("AT+CSCS=\"UCS2\"");
-            await Task.Delay(2000);
-            string output = "";
-            serialPort.WriteLine("AT" + System.Environment.NewLine);
-            await Task.Delay(2000);
-            serialPort.WriteLine("AT+CMGF=1\r" + System.Environment.NewLine);
-            await Task.Delay(2000);
-            serialPort.WriteLine("AT+CMGL=\"ALL\"" + System.Environment.NewLine);
-            await Task.Delay(5000);
-            output = serialPort.ReadExisting();
-            string[] receivedMessages = null;
-            receivedMessages = output.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
-            for (int i = 0; i < receivedMessages.Length - 1; i++)
-            {
-                if (receivedMessages[i].StartsWith("+CMGL"))
+                try
                 {
-                    string[] message = receivedMessages[i].Split(',');
-
-                    SMS sms = new SMS
+                    List<SMS> smsList = new List<SMS>();
+                    string portNo = GSMPort;
+                    serialPort.PortName = portNo;
+                    serialPort.BaudRate = 9600;
+                    if (!serialPort.IsOpen)
                     {
-                        Index = int.Parse(message[0].Substring(message[0].IndexOf(':') + 1)),
-                        Status = message[1].Replace("\"", string.Empty) == "REC READ" ? "Read" : "UnRead",
-                        Phone = GSMUtils.Translate(message[2].Replace("\"", string.Empty)),
-                        Date = "20" + message[4].Replace("\"", string.Empty),
-                        Time = message[5].Replace("\"", string.Empty),
-                        Body = GSMUtils.Translate(receivedMessages[i + 1])
-                    };
+                        serialPort.Open();
+                    }
+                    serialPort.WriteLine("AT+CSCS=\"UCS2\"");
+                    await Task.Delay(2000);
+                    string output = "";
+                    serialPort.WriteLine("AT" + System.Environment.NewLine);
+                    await Task.Delay(2000);
+                    serialPort.WriteLine("AT+CMGF=1\r" + System.Environment.NewLine);
+                    await Task.Delay(2000);
+                    serialPort.WriteLine("AT+CMGL=\"ALL\"" + System.Environment.NewLine);
+                    await Task.Delay(5000);
+                    output = serialPort.ReadExisting();
+                    string[] receivedMessages = null;
+                    receivedMessages = output.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
+                    for (int i = 0; i < receivedMessages.Length - 1; i++)
+                    {
+                        if (receivedMessages[i].StartsWith("+CMGL"))
+                        {
+                            string[] message = receivedMessages[i].Split(',');
 
-                    //-------------------IPAddress TO DB-----------------------
-                    //TblSmsReceived smsReceived = new TblSmsReceived()
-                    //{
-                    //    Phone = phone,
-                    //    Date = DateTime.Now,
-                    //    Message = Msg,
-                    //    IsVisit = false
-                    //};
-                    //await _context.TblSmsReceiveds.AddAsync(smsReceived);
-                    //await _context.SaveChangesAsync();
+                            SMS sms = new SMS
+                            {
+                                Index = int.Parse(message[0].Substring(message[0].IndexOf(':') + 1)),
+                                Status = message[1].Replace("\"", string.Empty) == "REC READ" ? "Read" : "UnRead",
+                                Phone = GSMUtils.Translate(message[2].Replace("\"", string.Empty)),
+                                Date = "20" + message[4].Replace("\"", string.Empty),
+                                Time = message[5].Replace("\"", string.Empty),
+                                Body = GSMUtils.Translate(receivedMessages[i + 1])
+                            };
 
+                            smsList.Add(sms);
+                        }
+                    }
+                    return Tuple.Create(smsList, true);
+                }
+                catch (Exception)
+                {
+                    return Tuple.Create(new List<SMS>(), false);
+                }
+                finally
+                {
+                    serialPort.Close();
                 }
             }
-            serialPort.Close();
-            return true;
         }
 
         private static async Task<bool> ReadAllPhone(string phone)
