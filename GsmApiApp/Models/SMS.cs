@@ -8,7 +8,7 @@ namespace GsmApiApp.Models
 {
     public class SMS
     {
-        public string Index { get; set; }
+        public int Index { get; set; }
         public string Status { get; set; }
         public string Phone { get; set; }
         public string Date { get; set; }

@@ -229,35 +229,13 @@ namespace GsmApiApp
 
                     SMS sms = new SMS
                     {
-                        Index = message[0],
-                        Status = message[1],
-                        Phone = GSMUtils.Translate(message[2]),
-                        Date = message[4],
-                        Time = message[5],
+                        Index = int.Parse(message[0].Substring(message[0].IndexOf(':') + 1)),
+                        Status = message[1].Replace("\"", string.Empty) == "REC READ" ? "Read" : "UnRead",
+                        Phone = GSMUtils.Translate(message[2].Replace("\"", string.Empty)),
+                        Date = "20" + message[4].Replace("\"", string.Empty),
+                        Time = message[5].Replace("\"", string.Empty),
                         Body = GSMUtils.Translate(receivedMessages[i + 1])
                     };
-
-                    //Read phone number from raw UCS2 text and convert it to normal text
-                    string ph = null;
-                    //string phone = null;
-                    //ph = message[2].Replace("\"", string.Empty);
-                    //StringBuilder sb2 = new StringBuilder();
-                    //for (int j = 0; j < ph.Length; j += 4)
-                    //{
-                    //    sb2.AppendFormat("\\u{0:x4}", ph.Substring(j, 4));
-                    //}
-                    //phone = System.Text.RegularExpressions.Regex.Unescape(sb2.ToString()).Replace("\"", string.Empty);
-
-                    //Read text message from raw UCS2 text and convert it to normal text
-                    //string msg = null;
-                    //string Msg = null;
-                    //msg = receivedMessages[i + 1];
-                    //StringBuilder sb = new StringBuilder();
-                    //for (int j = 0; j < msg.Length; j += 4)
-                    //{
-                    //    sb.AppendFormat("\\u{0:x4}", msg.Substring(j, 4));
-                    //}
-                    //Msg = System.Text.RegularExpressions.Regex.Unescape(sb.ToString()).Replace("\"", string.Empty);
 
                     //-------------------IPAddress TO DB-----------------------
                     //TblSmsReceived smsReceived = new TblSmsReceived()
