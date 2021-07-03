@@ -1,13 +1,27 @@
-﻿using System;
+﻿using GsmApiApp.Models;
+using GsmApiApp.Utilities;
+using Microsoft.Extensions.Configuration;
+using System;
+using System.IO.Ports;
 using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace GsmApiApp
 {
     class Program
     {
+        static string GSMPort;
         static async Task Main(string[] args)
         {
+            var builder = new ConfigurationBuilder()
+               .AddJsonFile($"appsettings.json", true, true);
+
+            var config = builder.Build();
+
+            //var connectionString = config["ConnectionString"];
+            GSMPort = config["GSM:Port"];
+
             Console.WriteLine("GSM Modem Api");
             if (!HttpListener.IsSupported)
             {
@@ -163,7 +177,7 @@ namespace GsmApiApp
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.WriteLine($"new {request.HttpMethod} request");
 
-                if(response.StatusCode == 200)
+                if (response.StatusCode == 200)
                 {
                     Console.ForegroundColor = ConsoleColor.Green;
                     Console.WriteLine("status 200/OK");
@@ -176,19 +190,89 @@ namespace GsmApiApp
 
                 output.Close();
                 listener.Stop();
-                
+
             }
         }
 
         private static async Task<bool> Send(string phone, string body)
         {
-            await Task.Delay(5000);
             return true;
         }
 
         private static async Task<bool> ReadAll()
         {
+            SerialPort serialPort = new SerialPort();
+            string portNo = GSMPort;
+            serialPort.PortName = portNo;
+            serialPort.BaudRate = 9600;
+            if (!serialPort.IsOpen)
+            {
+                serialPort.Open();
+            }
+            serialPort.WriteLine("AT+CSCS=\"UCS2\"");
+            await Task.Delay(2000);
+            string output = "";
+            serialPort.WriteLine("AT" + System.Environment.NewLine);
+            await Task.Delay(2000);
+            serialPort.WriteLine("AT+CMGF=1\r" + System.Environment.NewLine);
+            await Task.Delay(2000);
+            serialPort.WriteLine("AT+CMGL=\"ALL\"" + System.Environment.NewLine);
             await Task.Delay(5000);
+            output = serialPort.ReadExisting();
+            string[] receivedMessages = null;
+            receivedMessages = output.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
+            for (int i = 0; i < receivedMessages.Length - 1; i++)
+            {
+                if (receivedMessages[i].StartsWith("+CMGL"))
+                {
+                    string[] message = receivedMessages[i].Split(',');
+
+                    SMS sms = new SMS
+                    {
+                        Index = message[0],
+                        Status = message[1],
+                        Phone = GSMUtils.Translate(message[2]),
+                        Date = message[4],
+                        Time = message[5],
+                        Body = GSMUtils.Translate(receivedMessages[i + 1])
+                    };
+
+                    //Read phone number from raw UCS2 text and convert it to normal text
+                    string ph = null;
+                    //string phone = null;
+                    //ph = message[2].Replace("\"", string.Empty);
+                    //StringBuilder sb2 = new StringBuilder();
+                    //for (int j = 0; j < ph.Length; j += 4)
+                    //{
+                    //    sb2.AppendFormat("\\u{0:x4}", ph.Substring(j, 4));
+                    //}
+                    //phone = System.Text.RegularExpressions.Regex.Unescape(sb2.ToString()).Replace("\"", string.Empty);
+
+                    //Read text message from raw UCS2 text and convert it to normal text
+                    //string msg = null;
+                    //string Msg = null;
+                    //msg = receivedMessages[i + 1];
+                    //StringBuilder sb = new StringBuilder();
+                    //for (int j = 0; j < msg.Length; j += 4)
+                    //{
+                    //    sb.AppendFormat("\\u{0:x4}", msg.Substring(j, 4));
+                    //}
+                    //Msg = System.Text.RegularExpressions.Regex.Unescape(sb.ToString()).Replace("\"", string.Empty);
+
+                    //-------------------IPAddress TO DB-----------------------
+                    //TblSmsReceived smsReceived = new TblSmsReceived()
+                    //{
+                    //    Phone = phone,
+                    //    Date = DateTime.Now,
+                    //    Message = Msg,
+                    //    IsVisit = false
+                    //};
+                    //await _context.TblSmsReceiveds.AddAsync(smsReceived);
+                    //await _context.SaveChangesAsync();
+
+                }
+            }
+            serialPort.Close();
             return true;
         }
 
