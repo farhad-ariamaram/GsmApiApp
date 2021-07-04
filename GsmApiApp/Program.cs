@@ -165,27 +165,6 @@ namespace GsmApiApp
                         }
                         mode = "removeAll";
                         break;
-                    case "/api/remove":
-                        try
-                        {
-                            Index = request.QueryString.GetValues(0)[0];
-                            if (await Remove(Index))
-                            {
-                                responseMsg = $"remove sms with index {Index} successfully";
-                            }
-                            else
-                            {
-                                responseMsg = $"failed to remove sms with index {Index}";
-                            }
-                            Console.ForegroundColor = ConsoleColor.Yellow;
-                            Console.WriteLine(responseMsg);
-                        }
-                        catch (Exception)
-                        {
-                            responseMsg = "Unknow command";
-                        }
-                        mode = "remove";
-                        break;
                     default:
                         responseMsg = "Unknow command";
                         Console.ForegroundColor = ConsoleColor.Yellow;
@@ -212,14 +191,11 @@ namespace GsmApiApp
                     case "removeAll":
                         result = responseMsg.StartsWith("failed") ? JsonSerializer.Serialize("false") : JsonSerializer.Serialize("true");
                         break;
-                    case "remove":
-                        result = "";
-                        break;
                     case "default":
-                        result = "";
+                        result = JsonSerializer.Serialize("Unknow command");
                         break;
                     default:
-                        result = "";
+                        result = JsonSerializer.Serialize("Unknow command");
                         break;
                 }
 
@@ -534,10 +510,5 @@ namespace GsmApiApp
             }
         }
 
-        private static async Task<bool> Remove(string index)
-        {
-            await Task.Delay(5000);
-            return true;
-        }
     }
 }
