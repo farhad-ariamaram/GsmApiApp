@@ -45,6 +45,7 @@ namespace GsmApiApp
 
                 string Phone, Body, Index, responseMsg = "";
                 Tuple<List<SMS>, bool> resultReadAll = null;
+                Tuple<List<SMS>, bool> resultReadAllPhone = null;
                 Tuple<SMS, bool> resultRead = null;
 
                 switch (request.Url.AbsolutePath)
@@ -98,7 +99,8 @@ namespace GsmApiApp
                         try
                         {
                             Phone = request.QueryString.GetValues(0)[0];
-                            if (await ReadAllPhone(Phone))
+                            resultReadAllPhone = await ReadAllPhone(Phone);
+                            if (resultReadAllPhone.Item2)
                             {
                                 responseMsg = $"read all sms of {Phone} successfully";
                             }
@@ -196,7 +198,7 @@ namespace GsmApiApp
                         result = JsonSerializer.Serialize(resultReadAll.Item1);
                         break;
                     case "readAllPhone":
-                        result = "";
+                        result = JsonSerializer.Serialize(resultReadAllPhone.Item1);
                         break;
                     case "read":
                         result = JsonSerializer.Serialize(resultRead.Item1);
@@ -312,10 +314,75 @@ namespace GsmApiApp
             }
         }
 
-        private static async Task<bool> ReadAllPhone(string phone)
+        private static async Task<Tuple<List<SMS>, bool>> ReadAllPhone(string phone)
         {
-            await Task.Delay(5000);
-            return true;
+            using (SerialPort serialPort = new SerialPort())
+            {
+                try
+                {
+                    string fixedPhone = null;
+                    if (phone.Trim().StartsWith("98"))
+                    {
+                        fixedPhone = "+" + phone.Trim();
+                    }
+                    else if (phone.Trim().StartsWith("0"))
+                    {
+                        fixedPhone = "+98" + (phone.Trim().Substring(1));
+                    }
+
+                    List<SMS> smsList = new List<SMS>();
+                    string portNo = GSMPort;
+                    serialPort.PortName = portNo;
+                    serialPort.BaudRate = 9600;
+                    if (!serialPort.IsOpen)
+                    {
+                        serialPort.Open();
+                    }
+                    serialPort.WriteLine("AT+CSCS=\"UCS2\"");
+                    await Task.Delay(2000);
+                    string output = "";
+                    serialPort.WriteLine("AT" + System.Environment.NewLine);
+                    await Task.Delay(2000);
+                    serialPort.WriteLine("AT+CMGF=1\r" + System.Environment.NewLine);
+                    await Task.Delay(2000);
+                    serialPort.WriteLine("AT+CMGL=\"ALL\"" + System.Environment.NewLine);
+                    await Task.Delay(5000);
+                    output = serialPort.ReadExisting();
+                    string[] receivedMessages = null;
+                    receivedMessages = output.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
+                    for (int i = 0; i < receivedMessages.Length - 1; i++)
+                    {
+                        if (receivedMessages[i].StartsWith("+CMGL"))
+                        {
+                            string[] message = receivedMessages[i].Split(',');
+
+                            SMS sms = new SMS
+                            {
+                                Index = int.Parse(message[0].Substring(message[0].IndexOf(':') + 1)),
+                                Status = message[1].Replace("\"", string.Empty) == "REC READ" ? "Read" : "UnRead",
+                                Phone = GSMUtils.Translate(message[2].Replace("\"", string.Empty)),
+                                Date = "20" + message[4].Replace("\"", string.Empty),
+                                Time = message[5].Replace("\"", string.Empty),
+                                Body = GSMUtils.Translate(receivedMessages[i + 1])
+                            };
+
+                            if (sms.Phone == fixedPhone)
+                            {
+                                smsList.Add(sms);
+                            }
+                        }
+                    }
+                    return Tuple.Create(smsList, true);
+                }
+                catch (Exception)
+                {
+                    return Tuple.Create(new List<SMS>(), false);
+                }
+                finally
+                {
+                    serialPort.Close();
+                }
+            }
         }
 
         private static async Task<Tuple<SMS, bool>> Read(string index)
