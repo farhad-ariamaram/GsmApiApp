@@ -160,6 +160,8 @@ namespace GsmApiApp
                         catch (Exception)
                         {
                             responseMsg = "Unknow command";
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine(responseMsg);
                         }
                         mode = "removeAll";
                         break;
@@ -208,7 +210,7 @@ namespace GsmApiApp
                         result = JsonSerializer.Serialize(resultRead.Item1);
                         break;
                     case "removeAll":
-                        result = "";
+                        result = responseMsg.StartsWith("failed") ? JsonSerializer.Serialize("false") : JsonSerializer.Serialize("true");
                         break;
                     case "remove":
                         result = "";
@@ -502,8 +504,34 @@ namespace GsmApiApp
 
         private static async Task<bool> RemoveAll()
         {
-            await Task.Delay(5000);
-            return true;
+            using (SerialPort serialPort = new SerialPort())
+            {
+                try
+                {
+                    string portNo = GSMPort;
+                    serialPort.PortName = portNo;
+                    serialPort.BaudRate = 9600;
+                    if (!serialPort.IsOpen)
+                    {
+                        serialPort.Open();
+                    }
+                    serialPort.WriteLine("AT" + System.Environment.NewLine);
+                    await Task.Delay(2000);
+                    serialPort.WriteLine("AT+CMGF=1\r" + System.Environment.NewLine);
+                    await Task.Delay(2000);
+                    serialPort.WriteLine("AT+CMGD=1,3" + System.Environment.NewLine);
+                    await Task.Delay(2000);
+                    return true;
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+                finally
+                {
+                    serialPort.Close();
+                }
+            }
         }
 
         private static async Task<bool> Remove(string index)
