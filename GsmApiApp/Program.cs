@@ -29,16 +29,18 @@ namespace GsmApiApp
                 Console.WriteLine("This app does not support on your system, try again with Admin user or other OS...");
                 return;
             }
-            Console.WriteLine("Listening on : http://localhost:2470/");
+            Console.WriteLine("Listening on : http://0.0.0.0:2470/");
             while (true)
             {
                 string mode = null;
 
                 HttpListener listener = new HttpListener();
-                listener.Prefixes.Add("http://localhost:2470/");
+                listener.Prefixes.Add("http://*:2470/");
                 listener.Start();
                 HttpListenerContext context = await listener.GetContextAsync();
                 HttpListenerRequest request = context.Request;
+
+                string clientIP = context.Request.RemoteEndPoint.ToString();
 
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.WriteLine($"new {request.HttpMethod} request");
@@ -57,18 +59,18 @@ namespace GsmApiApp
                             Body = request.QueryString.GetValues(1)[0];
                             if (await Send(Phone, Body))
                             {
-                                responseMsg = $"send sms {Body} to {Phone} successfully";
+                                responseMsg = $"send sms to {Phone} successfully : request from {clientIP}";
                             }
                             else
                             {
-                                responseMsg = $"failed to send sms {Body} to {Phone}";
+                                responseMsg = $"failed to send sms to {Phone} : request from {clientIP}";
                             }
                             Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine(responseMsg);
                         }
                         catch (Exception)
                         {
-                            responseMsg = "Unknow command";
+                            responseMsg = $"Unknow command : request from {clientIP}";
                             Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine(responseMsg);
                         }
@@ -80,19 +82,19 @@ namespace GsmApiApp
                             resultReadAll = await ReadAll();
                             if (resultReadAll.Item2)
                             {
-                                responseMsg = "read all sms successfully";
+                                responseMsg = $"read all sms successfully : request from {clientIP}";
                             }
                             else
                             {
-                                responseMsg = "failed to read all sms";
+                                responseMsg = $"failed to read all sms : request from {clientIP}";
                             }
                             Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine(responseMsg);
                         }
                         catch (Exception e)
                         {
-                            responseMsg = $"Error: {e.Message}";
-                            Console.ForegroundColor = ConsoleColor.Red;
+                            responseMsg = $"Unknow command : request from {clientIP}";
+                            Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine(responseMsg);
                         }
                         mode = "readAll";
@@ -104,18 +106,18 @@ namespace GsmApiApp
                             resultReadAllPhone = await ReadAllPhone(Phone);
                             if (resultReadAllPhone.Item2)
                             {
-                                responseMsg = $"read all sms of {Phone} successfully";
+                                responseMsg = $"read all sms of {Phone} successfully : request from {clientIP}";
                             }
                             else
                             {
-                                responseMsg = $"failed to read all sms of {Phone}";
+                                responseMsg = $"failed to read all sms of {Phone} : request from {clientIP}";
                             }
                             Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine(responseMsg);
                         }
                         catch (Exception)
                         {
-                            responseMsg = "Unknow command";
+                            responseMsg = $"Unknow command : request from {clientIP}";
                             Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine(responseMsg);
                         }
@@ -128,18 +130,18 @@ namespace GsmApiApp
                             resultRead = await Read(Index);
                             if (resultRead.Item2)
                             {
-                                responseMsg = $"read sms with index {Index} successfully";
+                                responseMsg = $"read sms with index {Index} successfully : request from {clientIP}";
                             }
                             else
                             {
-                                responseMsg = $"failed to read sms with index {Index}";
+                                responseMsg = $"failed to read sms with index {Index} : request from {clientIP}";
                             }
                             Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine(responseMsg);
                         }
                         catch (Exception)
                         {
-                            responseMsg = "Unknow command";
+                            responseMsg = $"Unknow command : request from {clientIP}";
                         }
                         mode = "read";
                         break;
@@ -148,25 +150,25 @@ namespace GsmApiApp
                         {
                             if (await RemoveAll())
                             {
-                                responseMsg = "remove all sms successfully";
+                                responseMsg = $"remove all sms successfully : request from {clientIP}";
                             }
                             else
                             {
-                                responseMsg = "failed to remove all sms successfully";
+                                responseMsg = $"failed to remove all sms successfully : request from {clientIP}";
                             }
                             Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine(responseMsg);
                         }
                         catch (Exception)
                         {
-                            responseMsg = "Unknow command";
+                            responseMsg = $"Unknow command : request from {clientIP}";
                             Console.ForegroundColor = ConsoleColor.Yellow;
                             Console.WriteLine(responseMsg);
                         }
                         mode = "removeAll";
                         break;
                     default:
-                        responseMsg = "Unknow command";
+                        responseMsg = $"Unknow command : request from {clientIP}";
                         Console.ForegroundColor = ConsoleColor.Yellow;
                         Console.WriteLine(responseMsg);
                         mode = "default";
