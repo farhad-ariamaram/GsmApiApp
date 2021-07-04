@@ -69,6 +69,8 @@ namespace GsmApiApp
                         catch (Exception)
                         {
                             responseMsg = "Unknow command";
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine(responseMsg);
                         }
                         mode = "send";
                         break;
@@ -114,6 +116,8 @@ namespace GsmApiApp
                         catch (Exception)
                         {
                             responseMsg = "Unknow command";
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine(responseMsg);
                         }
                         mode = "readAllPhone";
                         break;
@@ -192,7 +196,7 @@ namespace GsmApiApp
                 switch (mode)
                 {
                     case "send":
-                        result = "";
+                        result = responseMsg.StartsWith("failed") ? JsonSerializer.Serialize("false") : JsonSerializer.Serialize("true");
                         break;
                     case "readAll":
                         result = JsonSerializer.Serialize(resultReadAll.Item1);
@@ -253,7 +257,54 @@ namespace GsmApiApp
 
         private static async Task<bool> Send(string phone, string body)
         {
-            return true;
+            using (SerialPort serialPort = new SerialPort())
+            {
+                try
+                {
+                    string fixedPhone = null;
+                    if (phone.Trim().StartsWith("98"))
+                    {
+                        fixedPhone = "+" + phone.Trim();
+                    }
+                    else if (phone.Trim().StartsWith("0"))
+                    {
+                        fixedPhone = "+98" + (phone.Trim().Substring(1));
+                    }
+                    else
+                    {
+                        return false;
+                    }
+
+                    string portNo = GSMPort;
+                    serialPort.PortName = portNo;
+                    serialPort.BaudRate = 9600;
+                    if (!serialPort.IsOpen)
+                    {
+                        serialPort.Open();
+                    }
+                    string sentmsg = null;
+                    serialPort.WriteLine("AT+CMGF=1");
+                    await Task.Delay(1000);
+                    serialPort.WriteLine("AT+CSCS=\"HEX\"");
+                    await Task.Delay(3000);
+                    serialPort.WriteLine("AT+CSMP=17,167,0,8");
+                    await Task.Delay(3000);
+                    serialPort.WriteLine("AT+CMGS=\"" + fixedPhone + "\"");
+                    await Task.Delay(3000);
+                    sentmsg = GSMUtils.StringToHex(body);
+                    serialPort.Write(sentmsg + '\x001a');
+                    await Task.Delay(5000);
+                    return true;
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+                finally
+                {
+                    serialPort.Close();
+                }
+            }
         }
 
         private static async Task<Tuple<List<SMS>, bool>> ReadAll()
